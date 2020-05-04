@@ -24,9 +24,23 @@ class StoreContact extends FormRequest
     public function rules()
     {
         return [
-            'firstname' => 'max:64|required|string',
-			'lastname' => 'max:64|required|string',
-			'phone[*]' => 'max:13|string|nullable',
+            'firstname' => 'required|max:64|required|alpha_dash',
+			'lastname' => 'required|max:64|required|alpha_dash',
+			'phone' => 'required|array',
+			'phone.*' => 'max:13|distinct|string|nullable',
         ];
     }
+		
+	/**
+	* Get the error messages for the defined validation rules.
+	*
+	* @return array
+	*/
+	public function messages()
+	{
+		return [
+			'distinct' => 'Номер повторяется!',
+			'exist' => 'Номер уже существует в телефонной книге!',
+		];
+	}
 }

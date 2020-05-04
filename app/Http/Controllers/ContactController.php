@@ -7,6 +7,7 @@ use App\Number;
 use App\Http\Requests\StoreContact;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\MessageBag;
 
 class ContactController extends Controller
 {
@@ -41,19 +42,28 @@ class ContactController extends Controller
      */
     public function store(StoreContact $request)
     {
-        $contact = new Contact;
-        $contact->firstname = $request->firstname;
-		$contact->lastname = $request->lastname;
-        $contact->created_at = date("Y-m-d H:i:s");
-        $contact->updated_at = date("Y-m-d H:i:s");
-        $contact->save();
-		$contact->numbers();
-		$number = new Number;
-		$number->phone = $request->phone[0];
-		$number->contact_id = $contact->id;
-		$number->save();
-        return redirect('contacts/'.$contact->id);
+		$validated = $request->validated();
+		$phone = $validated['phone'][0];
+		$exists = Number::where('phone', $phone)->first();	
+		if (!$exists) {		
+			$contact = new Contact;
+			$contact->firstname = $validated['firstname'];
+			$contact->lastname = $validated['lastname'];
+			$contact->created_at = date("Y-m-d H:i:s");
+			$contact->updated_at = date("Y-m-d H:i:s");
+			$contact->save();
+			$number = new Number;
+			$number->phone = $request->phone[0];
+			$number->contact_id = $contact->id;
+			$number->save();
+		} else {
+			//Номер уже существует в телефонной книге!
+			return view('create', [
+				'msg' => 'Номер уже существует в телефонной книге!'
+			]);
+		}
 		
+		return redirect('contacts/'.$contact->id)->withInput($request->all());
     }
 
     /**
@@ -78,7 +88,7 @@ class ContactController extends Controller
      */
     public function edit(Contact $contact)
     {
-        //$contact->numbers();
+        $contact->numbers();
         return view('edit', [
             'contact' => $contact,
         ]);
@@ -93,22 +103,51 @@ class ContactController extends Controller
      */
     public function update(StoreContact $request, Contact $contact)
     {
-        $contact->firstname = $request->firstname;
-		$contact->lastname = $request->lastname;
+		$validated = $request->validated();
+		$input = $request->input();
+        $contact->firstname = $validated['firstname'];
+		$contact->lastname = $validated['lastname'];
         $contact->created_at = date("Y-m-d H:i:s");
         $contact->updated_at = date("Y-m-d H:i:s");
         $contact->save();
-		foreach($request->phone as $id => $phone){
-			if($id){
-				$number = Number::findOrFail($id);
-			} else {
-				$number = new Number;
-				$number->contact_id = $contact->id;
+		foreach($validated['phone'] as $id => $phone){
+			$exists = Number::where('phone', $phone)->first();
+			if ($phone) {
+				if($id){
+					if (!$exists || ($exists && ($exists->contact_id === $contact->id))) {
+						$number = Number::findOrFail($id);
+					}
+				} else {
+					if (!$exists) {
+						$number = new Number;
+						$number->contact_id = $contact->id;
+					} else {
+						//Номер уже существует в телефонной книге!
+						$contact->numbers();
+						return view('edit', [
+							'contact' => $contact,
+							'msg' => 'Номер уже существует в телефонной книге!'
+						]);
+						//return redirect('contacts/'.$contact->id.'/edit')->with('msg', 'Номер уже существует в телефонной книге!');
+					}
+				}
+				if ($number) {
+					$number->phone = $phone;
+					if (count($contact->numbers) < 20 ) {
+						$number->save();				
+					}
+					else{
+						// Превышено допустимое количество контактов
+						return view('edit', [
+							'contact' => $contact,
+							'msg' => 'Превышено допустимое количество контактов!'
+						]);
+					}
+					$number = false;					
+				}
 			}
-			$number->phone = $phone;
-			$number->save();
 		}
-        return redirect('contacts/'.$contact->id);
+		return redirect('contacts/'.$contact->id.'/edit')->withInput($request->all());
     }
 
     /**
