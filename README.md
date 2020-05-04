@@ -10,7 +10,7 @@
 </blockquote>
 <p>Set project directory as current</p>
 <blockquote>
-<p>cd pat</p>
+<p>cd istart</p>
 </blockquote>
 <p>Load requred dependecies by Composer</p>
 <blockquote>
